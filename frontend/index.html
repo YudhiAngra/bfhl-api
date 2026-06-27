@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BFHL · Tree Visualizer</title>
+  <style>
+    :root {
+      --bg: #0d0f14; --surface: #161920; --card: #1e2230; --border: #2a2f42;
+      --accent: #5b6af0; --accent2: #8b5cf6; --green: #22d3a0;
+      --red: #f87171; --yellow: #fbbf24; --txt: #e2e6f0; --muted: #6b7280;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+      --sans: 'Inter', system-ui, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--txt); font-family: var(--sans); min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+    header { width: 100%; padding: 1.5rem 2rem; display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid var(--border); }
+    .logo { width:36px;height:36px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff; }
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    header span { font-size: 0.8rem; color: var(--muted); margin-left: .5rem; }
+    main { width: 100%; max-width: 1100px; padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .panel-header { padding: .75rem 1.25rem; background: var(--card); border-bottom: 1px solid var(--border); font-size: .75rem; font-weight: 600; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; display: flex; align-items: center; gap: .5rem; }
+    .dot { width:8px;height:8px;border-radius:50%;background:var(--accent); }
+    textarea { width:100%;background:transparent;border:none;outline:none;resize:vertical;padding:1.1rem 1.25rem;font-family:var(--mono);font-size:.88rem;color:var(--txt);min-height:130px;line-height:1.7; }
+    textarea::placeholder { color: var(--muted); }
+    .input-row { display:flex;align-items:center;gap:.75rem;padding:.75rem 1.25rem;border-top:1px solid var(--border);background:var(--card); }
+    .hint { font-size:.75rem;color:var(--muted);flex:1; }
+    button { font-family:var(--sans);font-size:.85rem;font-weight:600;border:none;cursor:pointer;border-radius:8px;padding:.55rem 1.25rem;transition:opacity .15s,transform .1s; }
+    button:active { transform:scale(.97); }
+    .btn-primary { background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff; }
+    .btn-primary:disabled { opacity:.5;cursor:not-allowed; }
+    .btn-ghost { background:transparent;border:1px solid var(--border);color:var(--muted); }
+    .btn-ghost:hover { border-color:var(--accent);color:var(--accent); }
+    .spinner { width:16px;height:16px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:inline-block; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .error-banner { background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.4);border-radius:10px;padding:1rem 1.25rem;color:var(--red);font-size:.88rem;display:none; }
+    #results { display:flex;flex-direction:column;gap:1.5rem; }
+    .summary-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem; }
+    .stat-card { background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1.1rem 1.25rem; }
+    .stat-label { font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.35rem; }
+    .stat-value { font-size:1.8rem;font-weight:700; }
+    .hierarchy-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem; }
+    .h-card { background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1.1rem 1.25rem;position:relative;overflow:hidden; }
+    .h-card::before { content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2)); }
+    .h-card.cyclic::before { background:linear-gradient(90deg,var(--red),#f87171aa); }
+    .h-card-header { display:flex;align-items:center;gap:.6rem;margin-bottom:.9rem; }
+    .root-badge { font-family:var(--mono);font-weight:700;font-size:1.1rem;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent; }
+    .cycle-pill { font-size:.65rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3);border-radius:999px;padding:.2rem .55rem; }
+    .depth-pill { font-size:.65rem;font-weight:700;background:rgba(34,211,160,.1);color:var(--green);border:1px solid rgba(34,211,160,.25);border-radius:999px;padding:.2rem .55rem; }
+    .tree-view { font-family:var(--mono);font-size:.78rem;line-height:1.8;color:var(--txt);padding:.6rem .75rem;background:var(--bg);border-radius:8px;border:1px solid var(--border); }
+    .tree-node { display:flex;align-items:center;gap:.4rem; }
+    .connector { color:var(--muted);user-select:none; }
+    .node-name { font-weight:700;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent; }
+    .cycle-msg { color:var(--muted);font-style:italic;font-size:.8rem; }
+    .list-section { display:flex;flex-direction:column;gap:.75rem; }
+    .list-row { display:flex;align-items:flex-start;gap:1rem;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem; }
+    .list-icon { font-size:1.1rem;flex-shrink:0;margin-top:.05rem; }
+    .list-title { font-size:.8rem;font-weight:600;margin-bottom:.35rem; }
+    .tags { display:flex;flex-wrap:wrap;gap:.4rem; }
+    .tag { font-family:var(--mono);font-size:.75rem;padding:.2rem .55rem;border-radius:6px; }
+    .tag.invalid { background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.25); }
+    .tag.dup { background:rgba(251,191,36,.1);color:var(--yellow);border:1px solid rgba(251,191,36,.2); }
+    .empty-tag { font-size:.8rem;color:var(--muted); }
+    details { border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+    summary { padding:.8rem 1.25rem;background:var(--card);cursor:pointer;font-size:.8rem;font-weight:600;color:var(--muted);user-select:none;list-style:none;display:flex;align-items:center;gap:.5rem; }
+    summary::before { content:'›';font-size:1rem;transition:transform .2s; }
+    details[open] summary::before { transform:rotate(90deg); }
+    pre { font-family:var(--mono);font-size:.78rem;line-height:1.6;padding:1.25rem;overflow-x:auto;background:var(--surface);color:var(--txt); }
+    .section-title { font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;margin-bottom:.5rem; }
+    .url-row { display:flex;gap:.5rem;align-items:center; }
+    .url-input { flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.5rem .85rem;font-family:var(--mono);font-size:.82rem;color:var(--txt);outline:none; }
+    .url-input:focus { border-color:var(--accent); }
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo">B</div>
+  <div><h1>BFHL Tree Visualizer<span>Chitkara Full Stack Challenge</span></h1></div>
+</header>
+<main>
+  <div>
+    <p class="section-title">API Endpoint</p>
+    <div class="url-row">
+      <input class="url-input" id="apiUrl" type="text" value="http://localhost:3001/bfhl" placeholder="https://your-api.onrender.com/bfhl" />
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><div class="dot"></div>Input — node edges</div>
+    <textarea id="inputData" placeholder="Enter one edge per line:
+A->B
+A->C
+B->D"></textarea>
+    <div class="input-row">
+      <span class="hint">Format: X->Y &nbsp;|&nbsp; one per line or comma-separated</span>
+      <button class="btn-ghost" id="clearBtn">Clear</button>
+      <button class="btn-ghost" id="exampleBtn">Load Example</button>
+      <button class="btn-primary" id="submitBtn"><span id="btnLabel">Run API</span></button>
+    </div>
+  </div>
+  <div class="error-banner" id="errorBanner"></div>
+  <div id="results"></div>
+</main>
+<script>
+const EXAMPLE = `A->B\nA->C\nB->D\nC->E\nE->F\nX->Y\nY->Z\nZ->X\nP->Q\nQ->R\nG->H\nG->H\nG->I\nhello\n1->2\nA->`;
+document.getElementById('exampleBtn').onclick = () => { document.getElementById('inputData').value = EXAMPLE; };
+document.getElementById('clearBtn').onclick = () => { document.getElementById('inputData').value=''; document.getElementById('results').innerHTML=''; document.getElementById('errorBanner').style.display='none'; };
+document.getElementById('submitBtn').onclick = callAPI;
+
+async function callAPI() {
+  const raw = document.getElementById('inputData').value.trim();
+  if (!raw) return;
+  const data = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  const url = document.getElementById('apiUrl').value.trim();
+  const btn = document.getElementById('submitBtn');
+  const lbl = document.getElementById('btnLabel');
+  const errB = document.getElementById('errorBanner');
+  btn.disabled = true; lbl.innerHTML = '<span class="spinner"></span>';
+  errB.style.display = 'none'; document.getElementById('results').innerHTML = '';
+  try {
+    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ data }) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    renderResults(await res.json());
+  } catch(err) { errB.textContent = '⚠  ' + err.message; errB.style.display = 'block'; }
+  finally { btn.disabled = false; lbl.textContent = 'Run API'; }
+}
+
+function renderResults(d) {
+  document.getElementById('results').innerHTML = `
+    <div><p class="section-title">Identity</p><div class="list-row"><div class="list-icon">👤</div><div><div class="list-title">${esc(d.user_id)}</div><div style="font-size:.8rem;color:var(--muted)">${esc(d.email_id)} &nbsp;·&nbsp; Roll: ${esc(d.college_roll_number)}</div></div></div></div>
+    <div><p class="section-title">Summary</p><div class="summary-grid">
+      <div class="stat-card"><div class="stat-label">Valid Trees</div><div class="stat-value" style="color:var(--green)">${d.summary.total_trees}</div></div>
+      <div class="stat-card"><div class="stat-label">Cycles Detected</div><div class="stat-value" style="color:var(--red)">${d.summary.total_cycles}</div></div>
+      <div class="stat-card"><div class="stat-label">Largest Tree Root</div><div class="stat-value" style="color:var(--accent)">${esc(d.summary.largest_tree_root)||'—'}</div></div>
+      <div class="stat-card"><div class="stat-label">Invalid Entries</div><div class="stat-value" style="color:var(--yellow)">${d.invalid_entries.length}</div></div>
+    </div></div>
+    <div><p class="section-title">Hierarchies (${d.hierarchies.length})</p><div class="hierarchy-grid">${d.hierarchies.map(renderCard).join('')}</div></div>
+    <div><p class="section-title">Validation</p><div class="list-section">
+      <div class="list-row"><div class="list-icon">🚫</div><div style="flex:1"><div class="list-title">Invalid Entries</div><div class="tags">${d.invalid_entries.length ? d.invalid_entries.map(e=>`<span class="tag invalid">${esc(e)}</span>`).join('') : '<span class="empty-tag">None</span>'}</div></div></div>
+      <div class="list-row"><div class="list-icon">♻️</div><div style="flex:1"><div class="list-title">Duplicate Edges</div><div class="tags">${d.duplicate_edges.length ? d.duplicate_edges.map(e=>`<span class="tag dup">${esc(e)}</span>`).join('') : '<span class="empty-tag">None</span>'}</div></div></div>
+    </div></div>
+    <details><summary>Raw JSON Response</summary><pre>${esc(JSON.stringify(d,null,2))}</pre></details>`;
+}
+
+function renderCard(h) {
+  const cyclic = !!h.has_cycle;
+  const badge = cyclic ? '<span class="cycle-pill">⟳ Cycle</span>' : `<span class="depth-pill">depth ${h.depth}</span>`;
+  const treeHTML = cyclic ? '<span class="cycle-msg">Cycle detected — no tree structure</span>' : buildTreeHTML(h.tree, h.root);
+  return `<div class="h-card ${cyclic?'cyclic':''}"><div class="h-card-header"><span class="root-badge">${esc(h.root)}</span>${badge}</div><div class="tree-view">${treeHTML}</div></div>`;
+}
+
+function buildTreeHTML(treeObj, root, prefix='', isLast=true, isRoot=true) {
+  if (!treeObj || !treeObj[root]) return '';
+  const children = Object.keys(treeObj[root]);
+  let html = `<div class="tree-node">${!isRoot ? `<span class="connector">${prefix}${isLast?'└─ ':'├─ '}</span>` : ''}<span class="node-name">${esc(root)}</span></div>`;
+  children.forEach((child, i) => {
+    const last = i === children.length - 1;
+    const newPrefix = isRoot ? '' : prefix + (isLast ? '   ' : '│  ');
+    html += buildTreeHTML(treeObj[root], child, newPrefix, last, false);
+  });
+  return html;
+}
+
+function esc(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>
